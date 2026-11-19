@@ -24,6 +24,7 @@ p.add_argument("--out", default="eval-results.json")
 args = p.parse_args()
 
 judge = env("JUDGE_MODEL")
+judge_is_reasoning = env("JUDGE_IS_REASONING", "false", required=False).lower() == "true"
 project, client = clients()
 
 # 1. The golden set is a versioned Foundry dataset (stored in your storage connection if set).
@@ -43,6 +44,8 @@ def foundry(name, evaluator, response="{{sample.output_text}}", judge_needed=Tru
          "data_mapping": {"query": "{{item.query}}", "response": response}}
     if judge_needed:
         c["initialization_parameters"] = {"deployment_name": judge}
+        if judge_is_reasoning:  # GPT-5-family / o-series judges reject temperature and max_tokens
+            c["initialization_parameters"]["is_reasoning_model"] = True
     return c
 
 testing_criteria = [

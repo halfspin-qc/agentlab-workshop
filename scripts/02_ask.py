@@ -9,6 +9,8 @@ import argparse
 import statistics
 import time
 
+import openai
+
 from common import agent_reference, clients, env
 
 p = argparse.ArgumentParser()
@@ -24,10 +26,17 @@ questions = [q.strip() for q in open(args.file, encoding="utf-8") if q.strip()] 
 if not questions or questions == [None]:
     p.error("give a question or --file")
 
-latencies, tokens = [], []
+latencies, tokens, blocked = [], [], 0
 for q in questions:
     start = time.perf_counter()
-    response = openai_client.responses.create(input=q, extra_body=agent_reference(ref))
+    try:
+        response = openai_client.responses.create(input=q, extra_body=agent_reference(ref))
+    except openai.BadRequestError as err:
+        # Usually a guardrail block (jailbreak, indirect attack, PII). Count it and carry on.
+        blocked += 1
+        if not args.quiet or len(questions) == 1:
+            print(f"\n>>> {q}\n[blocked or rejected: {getattr(err, 'message', err)}]")
+        continue
     elapsed = time.perf_counter() - start
     latencies.append(elapsed)
     usage = getattr(response, "usage", None)
@@ -36,7 +45,8 @@ for q in questions:
     if not args.quiet:
         print(f"\n>>> {q}\n{response.output_text}\n[{elapsed:.1f}s, {usage.total_tokens if usage else '?'} tokens, response {response.id}]")
 
-if len(questions) > 1:
+if len(questions) > 1 and latencies:
     p95 = sorted(latencies)[max(0, int(round(0.95 * len(latencies))) - 1)]
     print(f"\n{ref}: {len(questions)} questions | latency p50 {statistics.median(latencies):.1f}s, p95 {p95:.1f}s"
-          + (f" | avg tokens {statistics.mean(tokens):.0f}" if tokens else ""))
+          + (f" | avg tokens {statistics.mean(tokens):.0f}" if tokens else "")
+          + (f" | blocked {blocked}" if blocked else ""))

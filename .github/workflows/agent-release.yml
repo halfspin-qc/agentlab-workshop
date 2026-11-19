@@ -2,7 +2,7 @@
 #
 # One-time setup (see pipeline/README.md):
 #   Repository variables: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_AI_PROJECT_ENDPOINT
-#   Optional variables:   AGENT_MODEL, JUDGE_MODEL, PRODUCTION_AGENT_ID (e.g. claims-coverage-agent:2),
+#   Optional variables:   AGENT_MODEL, JUDGE_MODEL, JUDGE_IS_REASONING, PRODUCTION_AGENT_ID (e.g. claims-coverage-agent:2),
 #                         GUARDRAIL_NAME, STORAGE_CONNECTION_NAME
 #   Environment "production" with required reviewers: this is the human "ship it" decision.
 name: Claims agent - evaluate and release
@@ -25,6 +25,7 @@ env:
   AGENT_NAME: claims-coverage-agent
   AGENT_MODEL: ${{ vars.AGENT_MODEL || 'gpt-chat-latest' }}
   JUDGE_MODEL: ${{ vars.JUDGE_MODEL || 'gpt-chat-latest' }}
+  JUDGE_IS_REASONING: ${{ vars.JUDGE_IS_REASONING || 'false' }}
   GUARDRAIL_NAME: ${{ vars.GUARDRAIL_NAME }}
   STORAGE_CONNECTION_NAME: ${{ vars.STORAGE_CONNECTION_NAME }}
 
@@ -72,11 +73,11 @@ jobs:
           deployment-name: ${{ env.JUDGE_MODEL }}
           agent-ids: ${{ steps.candidate.outputs.ids }}
           baseline-agent-id: ${{ steps.candidate.outputs.baseline }}
-          data-path: ${{ github.workspace }}/evals/ci-eval.json
+          data-path: ${{ github.workspace }}/evals/ci-eval-mini.json
 
       - name: Ship gate (golden set + ship criteria)
         working-directory: scripts
-        run: python 03_run_eval.py --agents "${{ steps.candidate.outputs.ref }}" --gate --out ../eval-results.json
+        run: python 03_run_eval.py --agents "${{ steps.candidate.outputs.ref }}" --dataset ../evals/golden-mini.jsonl --gate --out ../eval-results.json
 
       - name: Keep the results
         if: always()

@@ -1,0 +1,21 @@
+{
+  "claims-coverage-agent:1": {
+    "rates": {
+      "task_adherence": 0.75,
+      "intent_resolution": 1.0,
+      "coherence": 1.0,
+      "violence": 1.0,
+      "decision_label": 0.0,
+      "escalation_label": 0.0,
+      "matches_answer_key": 0.625,
+      "must_escalate_recall": 0.0,
+      "avg_tokens": 9436.875
+    },
+    "categories": {
+      "assessment": "2/5",
+      "jailbreak": "1/1",
+      "pii": "1/1",
+      "ghost": "1/1"
+    }
+  }
+}

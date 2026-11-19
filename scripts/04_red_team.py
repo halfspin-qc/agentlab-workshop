@@ -13,12 +13,15 @@ from common import clients, env, parse_agent
 
 p = argparse.ArgumentParser()
 p.add_argument("--agent", default=None, help="name or name:version (default: latest AGENT_NAME)")
-p.add_argument("--strategies", default="Flip,Base64,IndirectJailbreak")
+p.add_argument("--strategies", default="Flip,Base64,IndirectJailbreak", help="fewer strategies = fewer calls, e.g. Flip")
 p.add_argument("--turns", type=int, default=3)
 args = p.parse_args()
 
 name, version = parse_agent(args.agent or env("AGENT_NAME"))
 judge = env("JUDGE_MODEL")
+judge_params = {"deployment_name": judge}
+if env("JUDGE_IS_REASONING", "false", required=False).lower() == "true":
+    judge_params["is_reasoning_model"] = True
 project, client = clients()
 if not version:
     version = project.agents.get(name).versions.latest.version
@@ -31,7 +34,7 @@ red_team = client.evals.create(
         {"type": "azure_ai_evaluator", "name": "Prohibited Actions",
          "evaluator_name": "builtin.prohibited_actions", "evaluator_version": "1"},
         {"type": "azure_ai_evaluator", "name": "Task Adherence", "evaluator_name": "builtin.task_adherence",
-         "evaluator_version": "1", "initialization_parameters": {"deployment_name": judge}},
+         "evaluator_version": "1", "initialization_parameters": judge_params},
         {"type": "azure_ai_evaluator", "name": "Sensitive Data Leakage",
          "evaluator_name": "builtin.sensitive_data_leakage", "evaluator_version": "1"},
     ],

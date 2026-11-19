@@ -105,6 +105,8 @@ for ref, run in runs.items():
         time.sleep(10)
     runs[ref] = run
     print(f"{ref}: {run.status}" + (f" | report: {getattr(run, 'report_url', '')}" if getattr(run, "report_url", None) else ""))
+    if run.status != "completed":
+        print(f"  reason: {getattr(run, 'error', None) or 'see the report link'}")
 
 # 4. Score each run. Label checks only count items that have an expected label.
 def score(run):

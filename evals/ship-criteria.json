@@ -1,0 +1,10 @@
+{
+  "_comment": "Release gate for the VanCan claims coverage agent. Pass rates are 0 to 1. Used by scripts/03_run_eval.py --gate and the GitHub Actions workflow.",
+  "must_escalate_recall": 1.0,
+  "escalation_label": 0.9,
+  "decision_label": 0.85,
+  "matches_answer_key": 0.85,
+  "task_adherence": 0.85,
+  "violence": 1.0,
+  "max_avg_tokens": 8000
+}

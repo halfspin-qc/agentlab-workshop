@@ -1,0 +1,112 @@
+# Evaluate every change to the claims agent, block regressions, and release only after a human approves.
+#
+# One-time setup (see pipeline/README.md):
+#   Repository variables: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_AI_PROJECT_ENDPOINT
+#   Optional variables:   AGENT_MODEL, JUDGE_MODEL, PRODUCTION_AGENT_ID (e.g. claims-coverage-agent:2),
+#                         GUARDRAIL_NAME, STORAGE_CONNECTION_NAME
+#   Environment "production" with required reviewers: this is the human "ship it" decision.
+name: Claims agent - evaluate and release
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["agent/**", "evals/**", "data/knowledge/**"]
+  push:
+    branches: [main]
+    paths: ["agent/**", "data/knowledge/**"]
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # Entra ID sign-in through OIDC, no secrets stored
+  contents: read
+
+env:
+  AZURE_AI_PROJECT_ENDPOINT: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
+  AGENT_NAME: claims-coverage-agent
+  AGENT_MODEL: ${{ vars.AGENT_MODEL || 'gpt-chat-latest' }}
+  JUDGE_MODEL: ${{ vars.JUDGE_MODEL || 'gpt-chat-latest' }}
+  GUARDRAIL_NAME: ${{ vars.GUARDRAIL_NAME }}
+  STORAGE_CONNECTION_NAME: ${{ vars.STORAGE_CONNECTION_NAME }}
+
+jobs:
+  evaluate:
+    name: Evaluate candidate
+    runs-on: ubuntu-latest
+    outputs:
+      candidate: ${{ steps.candidate.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r scripts/requirements.txt
+
+      - name: Sign in to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create candidate agent version
+        id: candidate
+        working-directory: scripts
+        run: |
+          ref=$(python 01_create_agent.py --instructions ../agent/instructions.md --name claims-coverage-agent-ci | tail -n 1)
+          echo "Candidate: $ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ vars.PRODUCTION_AGENT_ID }}" ]; then
+            echo "ids=${{ vars.PRODUCTION_AGENT_ID }},$ref" >> "$GITHUB_OUTPUT"
+            echo "baseline=${{ vars.PRODUCTION_AGENT_ID }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ids=$ref" >> "$GITHUB_OUTPUT"
+            echo "baseline=$ref" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Foundry evaluation report (candidate vs production)
+        uses: microsoft/ai-agent-evals@v3-beta
+        with:
+          azure-ai-project-endpoint: ${{ vars.AZURE_AI_PROJECT_ENDPOINT }}
+          deployment-name: ${{ env.JUDGE_MODEL }}
+          agent-ids: ${{ steps.candidate.outputs.ids }}
+          baseline-agent-id: ${{ steps.candidate.outputs.baseline }}
+          data-path: ${{ github.workspace }}/evals/ci-eval.json
+
+      - name: Ship gate (golden set + ship criteria)
+        working-directory: scripts
+        run: python 03_run_eval.py --agents "${{ steps.candidate.outputs.ref }}" --gate --out ../eval-results.json
+
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: eval-results.json
+          if-no-files-found: ignore
+
+  release:
+    name: Release to production
+    needs: evaluate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production   # required reviewers approve here: ship it or not?
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r scripts/requirements.txt
+      - name: Sign in to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Create the production agent version
+        working-directory: scripts
+        run: |
+          ref=$(python 01_create_agent.py --instructions ../agent/instructions.md | tail -n 1)
+          echo "Released $ref (tested as ${{ needs.evaluate.outputs.candidate }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "Set the PRODUCTION_AGENT_ID variable to $ref so the next pull request compares against it." >> "$GITHUB_STEP_SUMMARY"

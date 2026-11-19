@@ -1,0 +1,9 @@
+PolicyNumber,Name,Province,Vehicle,PolicyStartDate,CurrentForm,Endorsements,ClaimsLast24Months
+C-123,Priya Sharma,BC,2022 Toyota RAV4,2021-03-15,AUTO-26,E-3; E-7,0
+C-456,Daniel Okafor,AB,2019 Honda Civic,2020-06-01,AUTO-26,,1
+C-789,Mei Lin Chen,ON,2024 Tesla Model 3,2024-02-10,AUTO-26,E-3,0
+C-234,Liam Tremblay,ON,2017 Ford F-150,2019-09-20,AUTO-26,E-7,3
+C-567,Aisha Mohammed,BC,2021 Hyundai Kona EV,2023-11-05,AUTO-26,E-5,0
+C-890,Jordan Wells,AB,2020 Subaru Outback,2026-05-20,AUTO-26,,0
+C-345,Sofia Rossi,BC,2018 Mazda CX-5,2018-04-02,AUTO-26,E-3; E-7,1
+C-678,Ethan Park,ON,2023 Kia Telluride,2022-12-12,AUTO-26,E-3,0
